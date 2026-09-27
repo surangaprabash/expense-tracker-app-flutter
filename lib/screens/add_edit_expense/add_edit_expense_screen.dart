@@ -21,6 +21,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
   late final TextEditingController _noteController;
   String? _categoryId;
   DateTime _date = DateTime.now();
+  bool _isSaving = false;
 
   bool get _isEditing => widget.expense != null;
 
@@ -43,7 +44,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_categoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -52,29 +53,47 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
       return;
     }
 
+    setState(() => _isSaving = true);
+
     final expenseProvider = context.read<ExpenseProvider>();
+    final category = context.read<CategoryProvider>().byId(_categoryId!);
     final amount = double.parse(_amountController.text.trim());
     final note = _noteController.text.trim();
 
-    if (_isEditing) {
-      expenseProvider.updateExpense(widget.expense!.copyWith(
-        title: _titleController.text.trim(),
-        amount: amount,
-        categoryId: _categoryId,
-        date: _date,
-        note: note.isEmpty ? null : note,
-      ));
-    } else {
-      expenseProvider.addExpense(Expense(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text.trim(),
-        amount: amount,
-        categoryId: _categoryId!,
-        date: _date,
-        note: note.isEmpty ? null : note,
-      ));
+    try {
+      if (_isEditing) {
+        await expenseProvider.updateExpense(widget.expense!.copyWith(
+          title: _titleController.text.trim(),
+          amount: amount,
+          categoryId: _categoryId,
+          date: _date,
+          note: note.isEmpty ? null : note,
+          categoryName: category?.name,
+          categoryColorValue: category?.color.value,
+          categoryIconCodePoint: category?.icon.codePoint,
+        ));
+      } else {
+        await expenseProvider.addExpense(Expense(
+          id: '', // ignored by Firestore's .add(); doc gets its own generated id
+          title: _titleController.text.trim(),
+          amount: amount,
+          categoryId: _categoryId!,
+          date: _date,
+          note: note.isEmpty ? null : note,
+          categoryName: category?.name,
+          categoryColorValue: category?.color.value,
+          categoryIconCodePoint: category?.icon.codePoint,
+        ));
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save. Check your internet connection.')),
+        );
+      }
     }
-    Navigator.pop(context);
   }
 
   Future<void> _confirmDelete() async {
@@ -90,9 +109,19 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
           ),
         ) ??
         false;
-    if (confirmed && mounted) {
-      context.read<ExpenseProvider>().deleteExpense(widget.expense!.id);
-      Navigator.pop(context);
+    if (!confirmed) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await context.read<ExpenseProvider>().deleteExpense(widget.expense!.id);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete. Check your internet connection.')),
+        );
+      }
     }
   }
 
@@ -117,6 +146,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
               children: [
                 TextFormField(
                   controller: _titleController,
+                  enabled: !_isSaving,
                   decoration: const InputDecoration(labelText: 'Title'),
                   textCapitalization: TextCapitalization.sentences,
                   validator: (v) =>
@@ -125,6 +155,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _amountController,
+                  enabled: !_isSaving,
                   decoration: const InputDecoration(labelText: 'Amount', prefixText: 'LKR '),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   validator: (v) {
@@ -139,6 +170,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                 DropdownButtonFormField<String>(
                   value: _categoryId,
                   decoration: const InputDecoration(labelText: 'Category'),
+                  onChanged: _isSaving ? null : (v) => setState(() => _categoryId = v),
                   items: dropdownItems
                       .map((c) => DropdownMenuItem(
                             value: c.id,
@@ -152,20 +184,21 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                             ),
                           ))
                       .toList(),
-                  onChanged: (v) => setState(() => _categoryId = v),
                   validator: (v) => v == null ? 'Select a category' : null,
                 ),
                 const SizedBox(height: 16),
                 InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _date,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) setState(() => _date = picked);
-                  },
+                  onTap: _isSaving
+                      ? null
+                      : () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _date,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setState(() => _date = picked);
+                        },
                   child: InputDecorator(
                     decoration: const InputDecoration(labelText: 'Date'),
                     child: Text(DateFormat('MMM d, yyyy').format(_date)),
@@ -174,6 +207,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _noteController,
+                  enabled: !_isSaving,
                   decoration: const InputDecoration(
                     labelText: 'Note (optional)',
                     alignLabelWithHint: true,
@@ -183,23 +217,28 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                 ),
                 const SizedBox(height: 28),
                 FilledButton(
-                  onPressed: _submit,
+                  onPressed: _isSaving ? null : _submit,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(_isEditing ? 'Save Changes' : 'Add Expense'),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(_isEditing ? 'Save Changes' : 'Add Expense'),
                   ),
                 ),
                 if (_isEditing) ...[
                   const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _confirmDelete,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Text('Delete Expense'),
+                  OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _confirmDelete,
+                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                    label: Text('Delete Expense',
+                        style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Theme.of(context).colorScheme.error),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
                 ],

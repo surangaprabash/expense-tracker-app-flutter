@@ -19,6 +19,14 @@ class ExpenseListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayName = category?.name ?? expense.categoryName ?? 'Uncategorized';
+    final displayColor = category?.color ??
+        (expense.categoryColorValue != null ? Color(expense.categoryColorValue!) : Colors.grey);
+    final displayIcon = category?.icon ??
+        (expense.categoryIconCodePoint != null
+            ? IconData(expense.categoryIconCodePoint!, fontFamily: 'MaterialIcons')
+            : Icons.category);
+
     return Dismissible(
       key: ValueKey(expense.id),
       direction: DismissDirection.endToStart,
@@ -53,14 +61,12 @@ class ExpenseListItem extends StatelessWidget {
         child: ListTile(
           onTap: onTap,
           leading: CircleAvatar(
-            backgroundColor:
-                (category?.color ?? Colors.grey).withOpacity(0.15),
-            child: Icon(category?.icon ?? Icons.category,
-                color: category?.color ?? Colors.grey),
+            backgroundColor: displayColor.withOpacity(0.15),
+            child: Icon(displayIcon, color: displayColor),
           ),
           title: Text(expense.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(
-            '${category?.name ?? 'Uncategorized'} · ${DateFormat('MMM d, yyyy').format(expense.date)}'
+            '$displayName · ${DateFormat('MMM d, yyyy').format(expense.date)}'
             '${expense.note != null && expense.note!.isNotEmpty ? '\n${expense.note}' : ''}',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

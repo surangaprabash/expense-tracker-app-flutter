@@ -188,7 +188,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 builder: (_) => AddEditExpenseScreen(expense: expense),
                               ),
                             ),
-                            onDelete: () => expenseProvider.deleteExpense(expense.id),
+                            onDelete: () async {
+                              try {
+                                await expenseProvider.deleteExpense(expense.id);
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Failed to delete. Check your internet connection.')),
+                                  );
+                                }
+                              }
+                            },
                           );
                         },
                       ),

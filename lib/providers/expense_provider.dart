@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/expense.dart';
+import '../services/firestore_service.dart';
 
 class ExpenseProvider extends ChangeNotifier {
-  final List<Expense> _expenses = [];
+  final FirestoreService _firestoreService;
+  StreamSubscription<List<Expense>>? _subscription;
 
-  bool isLoading = false;
+  List<Expense> _expenses = [];
+
+  bool isLoading = true;
   String? errorMessage;
 
   String? filterCategoryId;
@@ -13,14 +18,43 @@ class ExpenseProvider extends ChangeNotifier {
 
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
+  ExpenseProvider({FirestoreService? firestoreService})
+      : _firestoreService = firestoreService ?? FirestoreService() {
+    _listen();
+  }
+
+  void _listen() {
+    isLoading = true;
+    _subscription = _firestoreService.streamExpenses().listen(
+      (expenses) {
+        _expenses = expenses;
+        isLoading = false;
+        errorMessage = null;
+        notifyListeners();
+      },
+      onError: (_) {
+        isLoading = false;
+        errorMessage = 'Failed to load expenses. Check your internet connection.';
+        notifyListeners();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
   List<Expense> get all => List.unmodifiable(_expenses);
 
-  // History list — scoped to the selected month, plus category/date filter and search.
+  List<Expense> get expensesForSelectedMonth => _expenses
+      .where((e) => e.date.year == selectedMonth.year && e.date.month == selectedMonth.month)
+      .toList();
+
   List<Expense> get filtered {
     final query = searchQuery.trim().toLowerCase();
-    var list = _expenses.where((e) {
-      final matchesMonth =
-          e.date.year == selectedMonth.year && e.date.month == selectedMonth.month;
+    var list = expensesForSelectedMonth.where((e) {
       final matchesCategory =
           filterCategoryId == null || e.categoryId == filterCategoryId;
       final matchesDate = filterDate == null ||
@@ -30,25 +64,19 @@ class ExpenseProvider extends ChangeNotifier {
       final matchesSearch = query.isEmpty ||
           e.title.toLowerCase().contains(query) ||
           (e.note?.toLowerCase().contains(query) ?? false);
-      return matchesMonth && matchesCategory && matchesDate && matchesSearch;
+      return matchesCategory && matchesDate && matchesSearch;
     }).toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
 
-  double get selectedMonthTotal {
-    return _expenses
-        .where((e) =>
-            e.date.year == selectedMonth.year && e.date.month == selectedMonth.month)
-        .fold(0.0, (sum, e) => sum + e.amount);
-  }
+  double get selectedMonthTotal =>
+      expensesForSelectedMonth.fold(0.0, (sum, e) => sum + e.amount);
 
   Map<String, double> get categoryTotalsForSelectedMonth {
     final map = <String, double>{};
-    for (final e in _expenses) {
-      if (e.date.year == selectedMonth.year && e.date.month == selectedMonth.month) {
-        map[e.categoryId] = (map[e.categoryId] ?? 0) + e.amount;
-      }
+    for (final e in expensesForSelectedMonth) {
+      map[e.categoryId] = (map[e.categoryId] ?? 0) + e.amount;
     }
     return map;
   }
@@ -75,7 +103,6 @@ class ExpenseProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Explicit jump from the year/month picker — clamped so you can't pick a future month.
   void setMonth(int year, int month) {
     final now = DateTime.now();
     var target = DateTime(year, month);
@@ -91,23 +118,9 @@ class ExpenseProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addExpense(Expense expense) {
-    _expenses.add(expense);
-    notifyListeners();
-  }
-
-  void updateExpense(Expense updated) {
-    final index = _expenses.indexWhere((e) => e.id == updated.id);
-    if (index != -1) {
-      _expenses[index] = updated;
-      notifyListeners();
-    }
-  }
-
-  void deleteExpense(String id) {
-    _expenses.removeWhere((e) => e.id == id);
-    notifyListeners();
-  }
+  Future<void> addExpense(Expense expense) => _firestoreService.addExpense(expense);
+  Future<void> updateExpense(Expense expense) => _firestoreService.updateExpense(expense);
+  Future<void> deleteExpense(String id) => _firestoreService.deleteExpense(id);
 
   void setCategoryFilter(String? categoryId) {
     filterCategoryId = categoryId;
