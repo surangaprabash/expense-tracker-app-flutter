@@ -10,14 +10,13 @@ The application allows users to manage expenses, organize them by category, view
 
 ## 📱 Screenshots
 
-|                                  Home                                 |                              Add / Edit Expense                              |
-| :-------------------------------------------------------------------: | :--------------------------------------------------------------------------: |
-| <img src="screenshots/home_screen.png" alt="Home Screen" width="300"> | <img src="screenshots/add_expense.png" alt="Add / Edit Expense" width="300"> |
+| Home | Add / Edit Expense |
+|:---:|:---:|
+| <img src="./screenshots/home_screen.png" alt="Home Screen" width="300"> | <img src="./screenshots/add_expense.png" alt="Add / Edit Expense" width="300"> |
 
-|                                 Manage Categories                                 |                               Firestore Database                              |
-| :-------------------------------------------------------------------------------: | :---------------------------------------------------------------------------: |
-| <img src="screenshots/manage_categories.png" alt="Manage Categories" width="300"> | <img src="screenshots/firestore_db.png" alt="Firestore Database" width="300"> |
-
+| Manage Categories | Firestore Database |
+|:---:|:---:|
+| <img src="./screenshots/manage_categories.png" alt="Manage Categories" width="300"> | <img src="./screenshots/firestore_db.png" alt="Firestore Database" width="300"> |
 
 ---
 
@@ -440,10 +439,10 @@ It was used for:
 
 It was used for:
 
-Firebase and Firestore integration guidance
-Debugging and error-handling guidance
-Reviewing implementation approaches
-Documentation support, including preparing and refining the project README.
+* Firebase and Firestore integration guidance
+* Debugging and error-handling guidance
+* Reviewing implementation approaches
+* Documentation support, including preparing and refining the project README.
 
 
 AI-generated suggestions and code were **reviewed, modified, tested, and integrated manually** as part of the development process.
