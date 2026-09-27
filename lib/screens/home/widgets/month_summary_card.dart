@@ -5,7 +5,8 @@ class MonthSummaryCard extends StatelessWidget {
   final DateTime month;
   final double total;
   final VoidCallback onPreviousMonth;
-  final VoidCallback? onNextMonth; // null disables the button (can't go into the future)
+  final VoidCallback? onNextMonth;
+  final VoidCallback onTapMonth;
 
   const MonthSummaryCard({
     super.key,
@@ -13,6 +14,7 @@ class MonthSummaryCard extends StatelessWidget {
     required this.total,
     required this.onPreviousMonth,
     required this.onNextMonth,
+    required this.onTapMonth,
   });
 
   @override
@@ -35,22 +37,31 @@ class MonthSummaryCard extends StatelessWidget {
             tooltip: 'Previous month',
           ),
           Expanded(
-            child: Column(
-              children: [
-                Text(
-                  monthLabel,
-                  style: TextStyle(color: scheme.onPrimaryContainer, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'LKR ${total.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: scheme.onPrimaryContainer,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTapMonth,
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(monthLabel,
+                          style: TextStyle(color: scheme.onPrimaryContainer, fontSize: 13)),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, size: 16, color: scheme.onPrimaryContainer),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'LKR ${total.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: scheme.onPrimaryContainer,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           IconButton(

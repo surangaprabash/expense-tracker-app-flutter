@@ -77,10 +77,28 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     Navigator.pop(context);
   }
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete expense?'),
+            content: Text('Delete "${widget.expense!.title}"? This can\'t be undone.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+            ],
+          ),
+        ) ??
+        false;
+    if (confirmed && mounted) {
+      context.read<ExpenseProvider>().deleteExpense(widget.expense!.id);
+      Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final categories = context.watch<CategoryProvider>().active;
-    // If editing an expense whose category got disabled meanwhile, still show it.
     final currentCategory = context.watch<CategoryProvider>().byId(_categoryId ?? '');
     final dropdownItems = [
       ...categories,
@@ -167,10 +185,24 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
                 FilledButton(
                   onPressed: _submit,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Text(_isEditing ? 'Save Changes' : 'Add Expense'),
                   ),
                 ),
+                if (_isEditing) ...[
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _confirmDelete,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text('Delete Expense'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

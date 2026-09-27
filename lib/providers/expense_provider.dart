@@ -15,11 +15,12 @@ class ExpenseProvider extends ChangeNotifier {
 
   List<Expense> get all => List.unmodifiable(_expenses);
 
-  // Full history list — respects category/date filter and search, but NOT
-  // the selected month (that only scopes the summary card and the chart).
+  // History list — scoped to the selected month, plus category/date filter and search.
   List<Expense> get filtered {
     final query = searchQuery.trim().toLowerCase();
     var list = _expenses.where((e) {
+      final matchesMonth =
+          e.date.year == selectedMonth.year && e.date.month == selectedMonth.month;
       final matchesCategory =
           filterCategoryId == null || e.categoryId == filterCategoryId;
       final matchesDate = filterDate == null ||
@@ -29,7 +30,7 @@ class ExpenseProvider extends ChangeNotifier {
       final matchesSearch = query.isEmpty ||
           e.title.toLowerCase().contains(query) ||
           (e.note?.toLowerCase().contains(query) ?? false);
-      return matchesCategory && matchesDate && matchesSearch;
+      return matchesMonth && matchesCategory && matchesDate && matchesSearch;
     }).toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
@@ -38,12 +39,10 @@ class ExpenseProvider extends ChangeNotifier {
   double get selectedMonthTotal {
     return _expenses
         .where((e) =>
-            e.date.year == selectedMonth.year &&
-            e.date.month == selectedMonth.month)
+            e.date.year == selectedMonth.year && e.date.month == selectedMonth.month)
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
-  // categoryId -> total amount, for whichever month is selected. Used by the chart.
   Map<String, double> get categoryTotalsForSelectedMonth {
     final map = <String, double>{};
     for (final e in _expenses) {
@@ -52,6 +51,11 @@ class ExpenseProvider extends ChangeNotifier {
       }
     }
     return map;
+  }
+
+  bool get isViewingCurrentMonth {
+    final now = DateTime.now();
+    return selectedMonth.year == now.year && selectedMonth.month == now.month;
   }
 
   bool get canGoToNextMonth {
@@ -68,6 +72,22 @@ class ExpenseProvider extends ChangeNotifier {
   void goToNextMonth() {
     if (!canGoToNextMonth) return;
     selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1);
+    notifyListeners();
+  }
+
+  // Explicit jump from the year/month picker — clamped so you can't pick a future month.
+  void setMonth(int year, int month) {
+    final now = DateTime.now();
+    var target = DateTime(year, month);
+    final current = DateTime(now.year, now.month);
+    if (target.isAfter(current)) target = current;
+    selectedMonth = target;
+    notifyListeners();
+  }
+
+  void resetToCurrentMonth() {
+    final now = DateTime.now();
+    selectedMonth = DateTime(now.year, now.month);
     notifyListeners();
   }
 

@@ -12,6 +12,7 @@ import '../manage_categories/manage_categories_screen.dart';
 import 'widgets/expense_list_item.dart';
 import 'widgets/filter_sheet.dart';
 import 'widgets/month_summary_card.dart';
+import 'widgets/month_year_picker_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,6 +39,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _pickMonth(ExpenseProvider expenseProvider) async {
+    final picked = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => MonthYearPickerSheet(initialMonth: expenseProvider.selectedMonth),
+    );
+    if (picked != null) {
+      expenseProvider.setMonth(picked.year, picked.month);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final expenseProvider = context.watch<ExpenseProvider>();
@@ -61,6 +73,11 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             : const Text('Expense Tracker'),
         actions: [
+          IconButton(
+            tooltip: themeProvider.isDark ? 'Switch to light' : 'Switch to dark',
+            icon: Icon(themeProvider.isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round),
+            onPressed: themeProvider.toggle,
+          ),
           IconButton(
             icon: Icon(_showSearch ? Icons.close : Icons.search),
             onPressed: () => _toggleSearch(expenseProvider),
@@ -99,36 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                       context, MaterialPageRoute(builder: (_) => const CategoryChartScreen()));
                   break;
-                case 'theme_system':
-                  themeProvider.setThemeMode(ThemeMode.system);
-                  break;
-                case 'theme_light':
-                  themeProvider.setThemeMode(ThemeMode.light);
-                  break;
-                case 'theme_dark':
-                  themeProvider.setThemeMode(ThemeMode.dark);
-                  break;
               }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'categories', child: Text('Manage categories')),
               const PopupMenuItem(value: 'chart', child: Text('Category chart')),
-              const PopupMenuDivider(),
-              CheckedPopupMenuItem(
-                value: 'theme_system',
-                checked: themeProvider.themeMode == ThemeMode.system,
-                child: const Text('Theme: System'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'theme_light',
-                checked: themeProvider.themeMode == ThemeMode.light,
-                child: const Text('Theme: Light'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'theme_dark',
-                checked: themeProvider.themeMode == ThemeMode.dark,
-                child: const Text('Theme: Dark'),
-              ),
             ],
           ),
         ],
@@ -145,10 +137,23 @@ class _HomeScreenState extends State<HomeScreen> {
               MonthSummaryCard(
                 month: expenseProvider.selectedMonth,
                 total: expenseProvider.selectedMonthTotal,
-                onPreviousMonth: () => setState(expenseProvider.goToPreviousMonth),
+                onPreviousMonth: expenseProvider.goToPreviousMonth,
                 onNextMonth:
-                    expenseProvider.canGoToNextMonth ? () => setState(expenseProvider.goToNextMonth) : null,
+                    expenseProvider.canGoToNextMonth ? expenseProvider.goToNextMonth : null,
+                onTapMonth: () => _pickMonth(expenseProvider),
               ),
+              if (!expenseProvider.isViewingCurrentMonth)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: TextButton.icon(
+                      onPressed: expenseProvider.resetToCurrentMonth,
+                      icon: const Icon(Icons.today, size: 16),
+                      label: const Text('Reset to current month'),
+                    ),
+                  ),
+                ),
               if (hasActiveFilters)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -166,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? EmptyState(
                         message: expenseProvider.searchQuery.isNotEmpty
                             ? 'No expenses match "${expenseProvider.searchQuery}".'
-                            : 'No expenses yet.\nTap + to add your first one.',
+                            : 'No expenses in this month yet.\nTap + to add one.',
                         icon: Icons.receipt_long_outlined,
                       )
                     : ListView.builder(
