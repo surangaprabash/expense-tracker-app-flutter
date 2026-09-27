@@ -9,10 +9,16 @@ class ExpenseProvider extends ChangeNotifier {
 
   String? filterCategoryId;
   DateTime? filterDate;
+  String searchQuery = '';
+
+  DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   List<Expense> get all => List.unmodifiable(_expenses);
 
+  // Full history list — respects category/date filter and search, but NOT
+  // the selected month (that only scopes the summary card and the chart).
   List<Expense> get filtered {
+    final query = searchQuery.trim().toLowerCase();
     var list = _expenses.where((e) {
       final matchesCategory =
           filterCategoryId == null || e.categoryId == filterCategoryId;
@@ -20,17 +26,49 @@ class ExpenseProvider extends ChangeNotifier {
           (e.date.year == filterDate!.year &&
               e.date.month == filterDate!.month &&
               e.date.day == filterDate!.day);
-      return matchesCategory && matchesDate;
+      final matchesSearch = query.isEmpty ||
+          e.title.toLowerCase().contains(query) ||
+          (e.note?.toLowerCase().contains(query) ?? false);
+      return matchesCategory && matchesDate && matchesSearch;
     }).toList();
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
   }
 
-  double get currentMonthTotal {
-    final now = DateTime.now();
+  double get selectedMonthTotal {
     return _expenses
-        .where((e) => e.date.year == now.year && e.date.month == now.month)
+        .where((e) =>
+            e.date.year == selectedMonth.year &&
+            e.date.month == selectedMonth.month)
         .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  // categoryId -> total amount, for whichever month is selected. Used by the chart.
+  Map<String, double> get categoryTotalsForSelectedMonth {
+    final map = <String, double>{};
+    for (final e in _expenses) {
+      if (e.date.year == selectedMonth.year && e.date.month == selectedMonth.month) {
+        map[e.categoryId] = (map[e.categoryId] ?? 0) + e.amount;
+      }
+    }
+    return map;
+  }
+
+  bool get canGoToNextMonth {
+    final now = DateTime.now();
+    final current = DateTime(now.year, now.month);
+    return selectedMonth.isBefore(current);
+  }
+
+  void goToPreviousMonth() {
+    selectedMonth = DateTime(selectedMonth.year, selectedMonth.month - 1);
+    notifyListeners();
+  }
+
+  void goToNextMonth() {
+    if (!canGoToNextMonth) return;
+    selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1);
+    notifyListeners();
   }
 
   void addExpense(Expense expense) {
@@ -58,6 +96,11 @@ class ExpenseProvider extends ChangeNotifier {
 
   void setDateFilter(DateTime? date) {
     filterDate = date;
+    notifyListeners();
+  }
+
+  void setSearchQuery(String query) {
+    searchQuery = query;
     notifyListeners();
   }
 
